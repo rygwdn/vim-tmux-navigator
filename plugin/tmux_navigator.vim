@@ -64,6 +64,14 @@ function! s:TmuxVimPaneIsZoomed()
   return s:TmuxCommand("display-message -p '#{window_zoomed_flag}'") == 1
 endfunction
 
+function! s:TmuxIsPaneAt(direction)
+  return s:TmuxCommand('display-message -p "#{pane_at_' . s:pane_position_from_direction[a:direction] . '}"') == 1
+endfunction
+
+function! s:TmuxIsNested()
+    return !empty($SSH_CONNECTION) && getftype('/tmp/tmux-host-socket') == 'socket'
+endfunction
+
 function! s:TmuxSocket()
   " The socket path is the first value in the comma-separated list of $TMUX.
   return split($TMUX, ',')[0]
@@ -71,6 +79,7 @@ endfunction
 
 function! s:TmuxCommand(args)
   let cmd = s:TmuxOrTmateExecutable() . ' -S ' . s:TmuxSocket() . ' ' . a:args
+
   let l:x=&shellcmdflag
   let &shellcmdflag='-c'
   let retval=system(cmd)
@@ -123,6 +132,12 @@ function! s:TmuxAwareNavigate(direction)
       endtry
     endif
     let args = 'select-pane -t ' . shellescape($TMUX_PANE) . ' -' . tr(a:direction, 'phjkl', 'lLDUR')
+
+    " Hack to partially handle carefully nested tmux instances
+    if s:TmuxIsNested() && s:TmuxIsPaneAt(a:direction)
+      let args = '-S /tmp/tmux-host-socket select-pane -' . tr(a:direction, 'phjkl', 'lLDUR')
+    endif
+
     if g:tmux_navigator_preserve_zoom == 1
       let l:args .= ' -Z'
     endif
